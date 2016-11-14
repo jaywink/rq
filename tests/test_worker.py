@@ -3,11 +3,14 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import os
+import sys
 from datetime import timedelta
 from time import sleep
 import signal
 import time
 from multiprocessing import Process
+
+from mock import Mock
 
 from tests import RQTestCase, slow
 from tests.fixtures import (create_file, create_file_after_timeout,
@@ -621,3 +624,24 @@ class TestWorkerShutdown(RQTestCase):
         shutdown_requested_date = w.shutdown_requested_date
         self.assertIsNotNone(shutdown_requested_date)
         self.assertEqual(type(shutdown_requested_date).__name__, 'datetime')
+
+
+class TestExceptionHandlerMessageEncoding(RQTestCase):
+    def test_handle_exception_handles_non_ascii_in_exception_message(self):
+        """Test that handle_exception doesn't crash on non-ascii in exception message."""
+        self.worker.handle_exception(Mock(), *self.exc_info)
+
+    def test_move_to_failed_queue_handles_non_ascii_in_exception_message(self):
+        """Test that move_to_failed_queue doesn't crash on non-ascii in exception message."""
+        self.worker.move_to_failed_queue(Mock(), *self.exc_info)
+
+    def setUp(self):
+        super(TestExceptionHandlerMessageEncoding, self).setUp()
+        self.worker = Worker("foo")
+        self.worker._exc_handlers = []
+        self.worker.failed_queue = Mock()
+        # Mimic how exception info is actually passed forwards
+        try:
+            raise Exception(u"💪")
+        except:
+            self.exc_info = sys.exc_info()
